@@ -1,0 +1,141 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  businessName  String?
+  abn           String?
+  role          Role      @default(TRADIE)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  jobs          Job[]
+  quotes        Quote[]
+  invoices      Invoice[]
+
+  @@index([email])
+}
+
+enum Role {
+  TRADIE
+  ADMIN
+}
+
+model Job {
+  id              String    @id @default(uuid())
+  userId          String
+  customerName    String
+  customerEmail   String?
+  customerPhone   String
+  customerAddress String
+  jobType         String    // "electrical", "plumbing", etc.
+  description     String
+  status          JobStatus @default(PENDING)
+  scheduledDate   DateTime?
+  completedDate   DateTime?
+  estimatedHours  Float?
+  actualHours     Float?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  user            User      @relation(fields: [userId], references: [id])
+  quote           Quote?
+  invoice         Invoice?
+
+  @@index([userId, status])
+  @@index([scheduledDate])
+}
+
+enum JobStatus {
+  PENDING
+  QUOTED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Quote {
+  id                String      @id @default(uuid())
+  jobId             String      @unique
+  userId            String
+  quoteNumber       String      @unique
+  lineItems         Json        // Array of {description, quantity, rate, amount}
+  subtotal          Decimal     @db.Decimal(10, 2)
+  gstAmount         Decimal     @db.Decimal(10, 2)
+  totalAmount       Decimal     @db.Decimal(10, 2)
+  status            QuoteStatus @default(DRAFT)
+  expiryDate        DateTime?
+  acceptedAt        DateTime?
+  notes             String?
+  aiGenerated       Boolean     @default(false)
+  aiConfidence      Float?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  job               Job         @relation(fields: [jobId], references: [id])
+  user              User        @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([quoteNumber])
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  jobId           String        @unique
+  userId          String
+  invoiceNumber   String        @unique
+  lineItems       Json
+  subtotal        Decimal       @db.Decimal(10, 2)
+  gstAmount       Decimal       @db.Decimal(10, 2)
+  totalAmount     Decimal       @db.Decimal(10, 2)
+  paidAmount      Decimal       @db.Decimal(10, 2) @default(0)
+  status          InvoiceStatus @default(DRAFT)
+  dueDate         DateTime?
+  paidDate        DateTime?
+  xeroInvoiceId   String?
+  stripePaymentId String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  job             Job           @relation(fields: [jobId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([invoiceNumber])
+  @@index([status])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
